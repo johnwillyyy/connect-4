@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import messagebox, ttk
 import time
+import random
 
 class ConnectFourGUI:
     def __init__(self):
