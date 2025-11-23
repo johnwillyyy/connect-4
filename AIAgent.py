@@ -18,10 +18,11 @@ class AIAgent:
         self._best_path_edges = []
         
         # Define Global Graph Attributes for Elegance (Dark theme base)
+        # *** Added 'splines': 'curved' to enable flexible, curved edges ***
         dot = Digraph(comment='Connect Four Search Tree', 
-                      graph_attr={'rankdir': 'TB', 'bgcolor': '#282a36', 'fontname': 'Helvetica', 'nodesep': '0.5', 'ranksep': '0.7'},
-                      node_attr={'fontname': 'Helvetica', 'fontsize': '10', 'color': '#f8f8f2', 'fontcolor': '#f8f8f2'}, # Default white text
-                      edge_attr={'fontname': 'Helvetica', 'fontsize': '9', 'color': '#f8f8f2'})
+                      graph_attr={'rankdir': 'TB', 'bgcolor': '#282a36', 'fontname': 'Palatino', 'nodesep': '0.5', 'ranksep': '0.7', 'splines': 'curved'},
+                      node_attr={'fontname': 'Palatino', 'fontsize': '10', 'color': '#f8f8f2', 'fontcolor': '#f8f8f2'}, # Default white text
+                      edge_attr={'fontname': 'Palatino', 'fontsize': '9', 'color': '#f8f8f2'})
         
         if not board.get_valid_moves():
             self.graph_source = ""
@@ -43,8 +44,6 @@ class AIAgent:
             return random.choice(valid_moves) if valid_moves else -1
 
         # --- Highlighting the Best Path ---
-        # NOTE: A full recursive path highlight is complex in python-graphviz. 
-        # The current implementation highlights the optimal edge leading out of the root.
         if best_path_id is not None:
              self._highlight_path(dot, root_id, best_path_id, best_col)
 
@@ -109,26 +108,25 @@ class AIAgent:
             score = board.count_connected_fours(self.computer_player) - board.count_connected_fours(self.human_player)
             label = f"TERMINAL (Draw)\nScore Diff: {score}"
             fillcolor = '#bd93f9'
-            fontcolor = '#282a36' # Change font to black for contrast
+            fontcolor = '#282a36' # Black font
             shape = 'box'
         elif is_heuristic:
             score = board.evaluate_heuristic(self.computer_player)
             label = f"Value: {score:.2f}" 
             fillcolor = '#f1fa8c'
-            fontcolor = '#282a36' # Change font to black for contrast
+            fontcolor = '#282a36' # Black font
             shape = 'box'
         else:
             score = None
-            # Dark colors for internal nodes
             fillcolor = '#ff5555' if maximizing_player else '#ff79c6' # MAX (Red-Pink) vs MIN (Pink)
-            fontcolor = '#f8f8f2' # Keep white font for contrast
+            fontcolor = '#f8f8f2' # White font
             shape = 'ellipse'
             
-            # Initial label for internal nodes (includes Alpha/Beta if AB mode)
+            # Initial label for internal nodes 
             if mode == 'AB':
                 label = f"{player_label} D={depth}\nA: {alpha:.2f}\nB: {beta:.2f}"
             else:
-                label = f"{player_label} D={depth}" # Base Minimax
+                label = f"{player_label} D={depth}" 
 
         # 2. Add current node to graph
         dot.node(current_node_id, label=label, style='filled', fillcolor=fillcolor, shape=shape, margin='0.1', fontcolor=fontcolor)
@@ -138,7 +136,6 @@ class AIAgent:
             dot.edge(edge_label[0], current_node_id, label=edge_label[1], color='#f8f8f2', penwidth='1') 
             
         if is_terminal or is_heuristic:
-            # Return score and the ID of this node (critical for path tracing)
             return score, None, current_node_id
 
         # 4. Search Logic
@@ -152,7 +149,6 @@ class AIAgent:
             child_id = self._get_next_node_id()
             row, played_col = self._simulate_move(board, col, self.computer_player if maximizing_player else self.human_player)
             
-            # Recursive call. Pass current alpha/beta bounds.
             score, _, child_path_id = self._minimax_graph(board, depth - 1, alpha, beta, not maximizing_player, mode, dot, child_id, (current_node_id, f"Col {col}"), None)
             
             self._undo_move(board, row, played_col)
@@ -174,23 +170,16 @@ class AIAgent:
             # Update node label with current best value and bounds
             if not is_terminal and not is_heuristic:
                 if mode == 'AB':
-                    # MAX: Value + Alpha
-                    if maximizing_player:
-                        current_label = f"{player_label} D={depth}\nValue: {value:.2f}\nA: {alpha:.2f}\nB: {beta:.2f}"
-                    # MIN: Value + Beta
-                    else:
-                        current_label = f"{player_label} D={depth}\nValue: {value:.2f}\nA: {alpha:.2f}\nB: {beta:.2f}"
+                    current_label = f"{player_label} D={depth}\nValue: {value:.2f}\nA: {alpha:.2f}\nB: {beta:.2f}"
                 else:
                     current_label = f"{player_label} D={depth}\nValue: {value:.2f}"
                 dot.node(current_node_id, label=current_label, style='filled', fillcolor=fillcolor, shape=shape, fontcolor=fontcolor)
 
             # Pruning check
             if mode == 'AB' and (alpha >= beta):
-                # Highlight the pruned edge
                 dot.edge(current_node_id, child_id, color='#ff5555', style='dashed', label='PRUNED', penwidth='2')
                 break 
         
-        # Return the final evaluation, the column that led to it, and the ID of the optimal child node
         return value, best_col, best_child_id
     
     # --- Expected Minimax Search for Graphviz ---
@@ -206,23 +195,23 @@ class AIAgent:
             score = board.count_connected_fours(self.computer_player) - board.count_connected_fours(self.human_player)
             label = f"TERMINAL (Draw)\nScore Diff: {score}"
             fillcolor = '#bd93f9'
-            fontcolor = '#282a36' # Change font to black
+            fontcolor = '#282a36' # Black font
             shape = 'box'
         elif is_heuristic:
             score = board.evaluate_heuristic(self.computer_player)
             label = f"Value: {score:.2f}" 
             fillcolor = '#f1fa8c'
-            fontcolor = '#282a36' # Change font to black
+            fontcolor = '#282a36' # Black font
             shape = 'box'
         elif maximizing_player:
             label = f"MAX\nD={depth}"
             fillcolor = '#50fa7b'
-            fontcolor = '#282a36' # Change font to black
+            fontcolor = '#282a36' # Black font
             shape = 'ellipse'
         else:
             label = f"MIN\nD={depth}"
             fillcolor = '#ff5555'
-            fontcolor = '#f8f8f2' # Keep white font
+            fontcolor = '#f8f8f2' # White font
             shape = 'ellipse'
 
         dot.node(current_node_id, label=label, style='filled', fillcolor=fillcolor, shape=shape, margin='0.1', fontcolor=fontcolor)
@@ -239,7 +228,6 @@ class AIAgent:
 
         if maximizing_player:
             for col in valid_moves:
-                # Max node chooses action -> goes to Chance Node
                 chance_id = self._get_next_node_id()
                 
                 # Chance Node Setup
