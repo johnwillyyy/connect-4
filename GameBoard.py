@@ -1,4 +1,3 @@
-
 class ConnectFourBoard:
     def __init__(self, rows=6, cols=7):
         self.rows = rows
@@ -74,6 +73,65 @@ class ConnectFourBoard:
                     count += 1
         
         return count
+    
+    def evaluate_heuristic(self, player):
+        """
+        Evaluate board heuristic for the given player
+        Returns: score where positive favors the player, negative favors opponent
+        """
+        weights = {4: 1000, 3: 100, 2: 10, 1: 1} 
+
+        def evaluate_window(window, player):
+            """Evaluate a 4-cell window"""
+            opponent = 3 - player
+            player_count = 0
+            opponent_count = 0
+            
+            for cell in window:
+                if cell == player:
+                    player_count += 1
+                elif cell == opponent:
+                    opponent_count += 1
+            
+            # If both players have pieces, window is blocked (worth 0)
+            if player_count > 0 and opponent_count > 0:
+                return 0
+            
+            # Return weighted score for the player who controls this window
+            if player_count > 0:
+                return weights[player_count]
+            elif opponent_count > 0:
+                return -weights[opponent_count]
+            else:
+                return 0  # Empty window
+        
+        total_score = 0
+        
+        # Check all horizontal windows
+        for row in range(self.rows):
+            for col in range(self.cols - 3):
+                window = [self.board[col + i][row] for i in range(4)]
+                total_score += evaluate_window(window, player)
+        
+        # Check all vertical windows  
+        for col in range(self.cols):
+            for row in range(self.rows - 3):
+                window = [self.board[col][row + i] for i in range(4)]
+                total_score += evaluate_window(window, player)
+        
+        # Check diagonal (top-left to bottom-right)
+        for col in range(self.cols - 3):
+            for row in range(self.rows - 3):
+                window = [self.board[col + i][row + i] for i in range(4)]
+                total_score += evaluate_window(window, player)
+        
+        # Check diagonal (top-right to bottom-left)
+        for col in range(3, self.cols):
+            for row in range(self.rows - 3):
+                window = [self.board[col - i][row + i] for i in range(4)]
+                total_score += evaluate_window(window, player)
+        
+        return total_score
     
     def get_board_state(self):
         return [col[:] for col in self.board]  # Return a copy
