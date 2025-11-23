@@ -2,7 +2,12 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 import time
 import random
+import io 
 from GameBoard import ConnectFourBoard
+from AIAgent import AIAgent 
+# Dependencies for Graphic Visualization
+from graphviz import Source 
+from PIL import Image, ImageTk 
 
 class ConnectFourGUI:
     def __init__(self):
@@ -10,7 +15,7 @@ class ConnectFourGUI:
         self.root.title("Connect Four - Human vs Computer")
         self.root.resizable(False, False)
         
-        # Game variables (to be set by player choices)
+        # Game variables
         self.human_color = None
         self.computer_color = None
         self.algorithm = None
@@ -18,9 +23,12 @@ class ConnectFourGUI:
         self.game_board = None
         self.computer_player = None
         self.human_player = None
+        self.agent = None
         
-        # Response time tracking
         self.computer_response_time = 0
+        
+        # Variable to store the Graphviz DOT source string for rendering
+        self.last_graph_source = "" 
         
         self.setup_welcome_screen()
     
@@ -28,12 +36,10 @@ class ConnectFourGUI:
         """Initial screen for color selection"""
         self.clear_screen()
         
-        # Title
         title_label = tk.Label(self.root, text="Connect Four", 
                               font=("Arial", 24, "bold"), fg="blue")
         title_label.pack(pady=20)
         
-        # Color selection frame
         color_frame = tk.Frame(self.root)
         color_frame.pack(pady=20)
         
@@ -43,13 +49,11 @@ class ConnectFourGUI:
         color_choice_frame = tk.Frame(color_frame)
         color_choice_frame.pack(pady=10)
         
-        # Yellow button (goes first)
         yellow_btn = tk.Button(color_choice_frame, text="Yellow (First)", 
                               font=("Arial", 12), bg="yellow", width=12, height=2,
                               command=lambda: self.choose_color("yellow"))
         yellow_btn.pack(side=tk.LEFT, padx=10)
         
-        # Red button
         red_btn = tk.Button(color_choice_frame, text="Red", 
                            font=("Arial", 12), bg="red", fg="white", width=12, height=2,
                            command=lambda: self.choose_color("red"))
@@ -64,15 +68,13 @@ class ConnectFourGUI:
         self.setup_algorithm_selection()
     
     def setup_algorithm_selection(self):
-        """Screen for algorithm and difficulty selection"""
+        """Screen for algorithm and difficulty (search depth K) selection"""
         self.clear_screen()
         
-        # Title
-        title_label = tk.Label(self.root, text="Computer Settings", 
+        title_label = tk.Label(self.root, text="Computer Settings (Search Depth K)", 
                               font=("Arial", 20, "bold"))
         title_label.pack(pady=20)
         
-        # Algorithm selection frame
         algo_frame = tk.LabelFrame(self.root, text="Select Algorithm", 
                                   font=("Arial", 12, "bold"), padx=10, pady=10)
         algo_frame.pack(pady=20, padx=20, fill="x")
@@ -89,8 +91,7 @@ class ConnectFourGUI:
             tk.Radiobutton(algo_frame, text=text, variable=self.algorithm_var,
                           value=value, font=("Arial", 10)).pack(anchor="w", pady=5)
         
-        # Difficulty selection frame
-        diff_frame = tk.LabelFrame(self.root, text="Select Difficulty (1-10)", 
+        diff_frame = tk.LabelFrame(self.root, text="Select Search Depth (K: 1-10)", 
                                   font=("Arial", 12, "bold"), padx=10, pady=10)
         diff_frame.pack(pady=20, padx=20, fill="x")
         
@@ -101,7 +102,6 @@ class ConnectFourGUI:
                                    font=("Arial", 10), length=300)
         difficulty_scale.pack(pady=10)
         
-        # Start game button
         start_btn = tk.Button(self.root, text="Start Game", 
                              font=("Arial", 14, "bold"), bg="green", fg="white",
                              command=self.start_game, width=15, height=2)
@@ -113,6 +113,8 @@ class ConnectFourGUI:
         self.difficulty = self.difficulty_var.get()
         self.game_board = ConnectFourBoard()
         
+        self.agent = AIAgent(self.computer_player, self.human_player, self.difficulty)
+
         self.setup_game_screen()
     
     def setup_game_screen(self):
@@ -152,15 +154,15 @@ class ConnectFourGUI:
         # Game board canvas
         self.canvas = tk.Canvas(self.root, width=700, height=600, bg="blue")
         self.canvas.pack(pady=10)
-        
+
         # Control buttons frame
         control_frame = tk.Frame(self.root)
         control_frame.pack(pady=10)
         
-        # Display Game Tree button (placeholder)
-        tree_btn = tk.Button(control_frame, text="Display Game Tree", 
-                            font=("Arial", 10), state="disabled")
-        tree_btn.pack(side=tk.LEFT, padx=5)
+        # Display Game Tree button (Now functional as a graphic pop-up trigger)
+        self.tree_btn = tk.Button(control_frame, text="Show Search Tree (Graphic)", 
+                            font=("Arial", 10), command=self.show_search_tree_popup, state="disabled")
+        self.tree_btn.pack(side=tk.LEFT, padx=5)
         
         # Restart button
         restart_btn = tk.Button(control_frame, text="New Game", 
@@ -176,6 +178,64 @@ class ConnectFourGUI:
         # If computer goes first, make its move
         if self.game_board.current_player == self.computer_player:
             self.root.after(500, self.computer_move)
+            
+    def show_search_tree_popup(self):
+        """Renders the Graphviz source and displays it as an image in a pop-up window."""
+        if not self.last_graph_source:
+            messagebox.showinfo("Search Tree", "The computer has not made a move yet.")
+            return
+
+        try:
+            # 1. Render DOT source to PNG data in memory
+            # Graphviz is used to render the graph definition created in AIAgent.py
+            dot = Source(self.last_graph_source)
+            png_bytes = dot.pipe(format='png')
+            
+            # 2. Load PNG data into PIL Image object
+            image_data = io.BytesIO(png_bytes)
+            pil_image = Image.open(image_data)
+            
+            # 3. Create Tkinter Toplevel window
+            popup = tk.Toplevel(self.root)
+            popup.title("AI Minimax Tree (Depth K={})".format(self.difficulty))
+            popup.grab_set() 
+
+            # 4. Create scrollable canvas for the potentially large image
+            canvas_frame = tk.Frame(popup)
+            canvas_frame.pack(expand=True, fill=tk.BOTH)
+
+            tree_canvas = tk.Canvas(canvas_frame, bg='white')
+            
+            # Scrollbars
+            v_scrollbar = tk.Scrollbar(canvas_frame, orient=tk.VERTICAL, command=tree_canvas.yview)
+            h_scrollbar = tk.Scrollbar(canvas_frame, orient=tk.HORIZONTAL, command=tree_canvas.xview)
+            tree_canvas.config(yscrollcommand=v_scrollbar.set, xscrollcommand=h_scrollbar.set)
+
+            v_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+            h_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
+            tree_canvas.pack(side=tk.LEFT, expand=True, fill=tk.BOTH)
+
+            # 5. Convert PIL image to Tkinter PhotoImage and display
+            tk_image = ImageTk.PhotoImage(pil_image)
+            tree_canvas.create_image(0, 0, anchor=tk.NW, image=tk_image)
+            
+            # CRITICAL: Configure scroll region and keep a reference
+            tree_canvas.config(scrollregion=(0, 0, pil_image.width, pil_image.height))
+            tree_canvas.image = tk_image 
+
+            # Set popup size (maximized to screen size if necessary)
+            max_width = self.root.winfo_screenwidth() * 0.9
+            max_height = self.root.winfo_screenheight() * 0.9
+            w = min(pil_image.width, int(max_width))
+            h = min(pil_image.height, int(max_height))
+            
+            popup.geometry(f"{w}x{h}")
+            
+        except Exception as e:
+            # This robust error handling guides the user to fix the required installations.
+            messagebox.showerror("Visualization Error", 
+                                 f"Failed to render graphic tree. Check required installations:\n1. Graphviz system tool\n2. Python packages (pip install graphviz pillow)\n\nDetailed Error: {e}")
+            print(f"Graphviz rendering error: {e}")
     
     def draw_board(self):
         """Draw the Connect Four board with round cells"""
@@ -184,7 +244,6 @@ class ConnectFourGUI:
         cell_width = 100
         cell_height = 100
         padding = 10
-        radius = 40
         
         # Draw board background
         self.canvas.create_rectangle(0, 0, 700, 600, fill="blue", outline="blue")
@@ -211,7 +270,7 @@ class ConnectFourGUI:
         if self.game_board.game_over or self.game_board.current_player == self.computer_player:
             return
             
-        col = event.x // 100  # Determine which column was clicked
+        col = event.x // 100
         
         if 0 <= col < 7 and self.game_board.is_valid_move(col):
             result = self.game_board.play_at_column(col)
@@ -220,24 +279,30 @@ class ConnectFourGUI:
                 self.update_display()
                 
                 if not self.game_board.game_over:
-                    self.root.after(500, self.computer_move)
+                    self.root.after(500, self.computer_move) 
                 else:
                     self.game_finished()
     
     def computer_move(self):
-        """Handle computer player's move (placeholder for now)"""
+        """Handle computer player's move using the selected AI algorithm"""
         if self.game_board.game_over or self.game_board.current_player == self.human_player:
             return
             
         start_time = time.time()
         
-        # Placeholder - random move for now
-        valid_moves = self.game_board.get_valid_moves()
-        if valid_moves:
-            col = random.choice(valid_moves)
+        col = self.agent.get_best_move(self.game_board, self.algorithm)
+
+        # 1. Store the Graphviz DOT source string
+        self.last_graph_source = self.agent.get_graphviz_source()
+        
+        # 2. Enable the Show Search Tree button
+        if hasattr(self, 'tree_btn'):
+            self.tree_btn.config(state="normal")
+        
+        # Proceed with the move
+        if col != -1 and self.game_board.is_valid_move(col):
             result = self.game_board.play_at_column(col)
             
-            # Calculate response time
             self.computer_response_time = time.time() - start_time
             
             if result:
@@ -246,6 +311,8 @@ class ConnectFourGUI:
                 
                 if self.game_board.game_over:
                     self.game_finished()
+        else:
+            self.game_finished()
     
     def update_display(self):
         """Update the game information display"""
@@ -284,6 +351,7 @@ class ConnectFourGUI:
             self.root.quit()
     
     def restart_game(self):
+        self.last_graph_source = "" 
         self.setup_welcome_screen()
     
     def clear_screen(self):
